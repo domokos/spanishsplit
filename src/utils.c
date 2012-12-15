@@ -1,103 +1,85 @@
 /*
- Utils.c
+ utils.c
 
- Copyright (C) 2011 Belledonne Communications, Grenoble, France
- Author : Johan Pascal
- 
- This program is free software; you can redistribute it and/or
- modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation; either version 2
- of the License, or (at your option) any later version.
- 
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
- 
- You should have received a copy of the GNU General Public License
- along with this program; if not, write to the Free Software
- Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 
-#include "typedef.h"
-
 void printUsage(char *command)
 {
-	printf ("Usage:\n %s -p|<input file name>\n\n This executable request one argument either:\n  -p : display the computation type(fixed or floating) and exit\nor\n  <input file name> : process the input file and write the output in a file with the same prefix a .out extension\n\n",command);
-	exit (-1);
+  printf ("Usage:\n %s <input file name> [start stop filename]...\n\n This executable requires 1+2*n arguments:\n <input file name> : process the input file and write the output in a file with the same prefix .raw extension\n [start stop filename] : If start and stop pairs are present then multiple output files are generated, input is split as per the specified segments and named as filename.mp3\n\n",command);
+  exit (-1);
 
 }
 
-int getArgument(int argc, char *argv[], char** filePrefix)
+int HHMMSS2sec(char* string)
 {
-	/* We have only one argument wich can be either the input filename or -p which will answer either floating or fixed according */
-	/* computation mode being fixed or floating point */ 
-	if (argc != 2) {
-		printUsage(argv[0]);
-		exit (-1);
-	}
-
-	if (argv[1][0] == '-') {
-		if (argv[1][1] == 'p') { /* -p switch, return fixed or floating and exit */
-#ifdef FLOATING_POINT
-			printf ("floating\n");
-#else /* ifdef FLOATING_POINT */
-			printf ("fixed\n");
-#endif /* ifdef FLOATING_POINT */
-			exit(0);
-		} else { /* unknow switch, display usage and exit */
-			printUsage(argv[0]);
-			exit (-1);
-		}
-	} else { /* argument is the input file */
-		/* get the input file prefix */
-  		int i = strlen(argv[1])-1;
-		int pos = 0;
-		while (pos==0) {
-			if (argv[1][i]=='.') {
-			pos = i;
-			}
-			i--;
-			if (i==0) { 
-				printf("%s - Error input file  %s doesn't contain any ., impossible to extract prefix\n", argv[0], argv[1]);
-				exit(-1);
-			}
-  		}
-		*filePrefix = malloc((pos+3)*sizeof(char));
-		strncpy(*filePrefix, argv[1], pos);
-		(*filePrefix)[pos]='\0';
-	}
-
-	return 0;
+  return (string[0]-'0')*36000+(string[1]-'0')*3600+(string[2]-'0')*600+(string[3]-'0')*60+(string[4]-'0')*10+(string[5]-'0');
 }
 
-int getArgumentsMultiChannel(int argc, char *argv[], char *filePrefix[])
+int isHHMMSS(char* string)
 {
-	while (argc>1) { /* loop over all the argument which shall be input file names */
-		argc--;
-		/* get the input file prefix */
-  		int i = strlen(argv[argc])-1;
-		int pos = 0;
-		while (pos==0) {
-			if (argv[argc][i]=='.') {
-			pos = i;
-			}
-			i--;
-			if (i==0) { 
-				printf("%s - Error input file  %s doesn't contain any ., impossible to extract prefix\n", argv[0], argv[argc]);
-				exit(-1);
-			}
-  		}
-		
-		filePrefix[argc-1] = malloc((pos+3)*sizeof(char));
+  int i;
+  for (i=0; i<strlen(string); i++)
+    {
+      if (i<2 || i==3 || i==5 )
+        {
+          if ( !(string[i]>='0' && string[i]<='9')) return 0;
+        }else{
+          if ( !(string[i]>='0' && string[i]<='5')) return 0;
+        }
+    }
+  return 1;
+}
 
-		strncpy(filePrefix[argc-1], argv[argc], pos);
-		filePrefix[argc-1][pos]='\0';
-	}
+int getArgument(int argc, char *argv[], char** filePrefix, int *nr_of_segments)
+{
 
-	return 0;
+  /* Check te number of arguments> it must be 3*n + 2 *including executable_name */
+  if (argc % 3 != 2) {
+      printUsage(argv[0]);
+      exit (-1);
+  }
+
+  /* get the input file prefix */
+  int i = strlen(argv[1])-1;
+  int pos = 0;
+  while (pos==0) {
+      if (argv[1][i]=='.') {
+          pos = i;
+      }
+      i--;
+      if (i==0) {
+          printf("%s - Error input file  %s doesn't contain any ., impossible to extract prefix\n", argv[0], argv[1]);
+          exit(-1);
+      }
+  }
+  *filePrefix = malloc((pos+3)*sizeof(char));
+  strncpy(*filePrefix, argv[1], pos);
+  (*filePrefix)[pos]='\0';
+
+  *nr_of_segments = (argc -2)/3;
+
+  for(i=0; i<*nr_of_segments; i++)
+    {
+      if ( (strlen(argv[i*3+2]) != 6) || !isHHMMSS(argv[i*3+2]) )
+        {
+          printf("%s - Error start parameter %s doesn't match format requirement: HHMMSS\n", argv[0], argv[i*3+2]);
+          exit(-1);
+        }
+      if ( (strlen(argv[i*3+3]) != 6) || !isHHMMSS(argv[i*3+3]) )
+        {
+          printf("%s - Error stop parameter %s doesn't match format requirement: HHMMSS\n", argv[0], argv[i*3+3]);
+          exit(-1);
+        }
+      if ( HHMMSS2sec(argv[i*3+2]) > HHMMSS2sec(argv[i*3+3]))
+        {
+          printf("%s - Error start parameter %s is bigger than stop parameter %s\n", argv[0], argv[i*3+2], argv[i*3+3]);
+          exit(-1);
+        }
+    }
+
+  return 0;
 }
