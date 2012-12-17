@@ -40,6 +40,8 @@ int HHMMSS2sec(char* string)
 
 int isHHMMSS(char* string)
 {
+  if (strlen(string) !=6) return 0;
+
   int i;
   for (i=0; i<strlen(string); i++)
     {
@@ -83,12 +85,12 @@ int getArgument(int argc, char *argv[], char** filePrefix, int *nr_of_segments)
 
   for(i=0; i<*nr_of_segments; i++)
     {
-      if ( (strlen(argv[i*3+2]) != 6) || !isHHMMSS(argv[i*3+2]) )
+      if ( !isHHMMSS(argv[i*3+2]) )
         {
           printf("%s - Error start parameter %s doesn't match format requirement: HHMMSS\n", argv[0], argv[i*3+2]);
           exit(-1);
         }
-      if ( (strlen(argv[i*3+3]) != 6) || !isHHMMSS(argv[i*3+3]) )
+      if ( !isHHMMSS(argv[i*3+3]) )
         {
           printf("%s - Error stop parameter %s doesn't match format requirement: HHMMSS\n", argv[0], argv[i*3+3]);
           exit(-1);
