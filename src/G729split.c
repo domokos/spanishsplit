@@ -102,6 +102,28 @@ int getArgument(int argc, char *argv[], char** filePrefix, int *nr_of_segments)
 
   return 0;
 }
+
+/* clear all output and temp files wher error in the middle of processing input */
+void cleanup(char **temp_files, int nr_of_segments, char *outputFile)
+{
+  char command[200];
+  int i;
+  for(i=0; i<nr_of_segments; i++)
+    {
+      /* remove segment raw temp files*/
+      sprintf(command,"rm -f %s",temp_files[i]);
+      system(command);
+
+      /* remove segment mp3 files*/
+      sprintf(command,"rm -f %s.mp3",temp_files[i]);
+      system(command);
+    }
+
+  /* remove main raw temp file*/
+  sprintf(command,"rm -f %s",outputFile);
+  system(command);
+}
+
 /* end of utils block */
 
 int main(int argc, char *argv[]) {
@@ -144,7 +166,7 @@ int main(int argc, char *argv[]) {
 
 
   /* system command buffer for the mp3 conversion*/
-  char *command = malloc(sizeof(char)*200);
+  char command[200];
 
   /* initialisation complete */
 
@@ -219,6 +241,7 @@ int main(int argc, char *argv[]) {
                 sprintf(temp_files[i],"%s_temp",argv[i*3+4]);
                 if ( (fpChunks[i] = fopen(temp_files[i], "w")) == NULL) {
                     printf("%s - Error: can't create chunk output file  %s\n", argv[0], temp_files[i]);
+                    cleanup(temp_files, nr_of_segments, outputFile);
                     exit(-1);
                 }
                 /* write the ouput to raw temp data file */
@@ -239,13 +262,13 @@ int main(int argc, char *argv[]) {
                 system(command);
 
                 /* remove segment raw temp file*/
-                sprintf(command,"rm %s",temp_files[i]);
+                sprintf(command,"rm -f %s",temp_files[i]);
                 system(command);
 
               }
             break;
           case AFTER_CHUNK:
-
+            /* we do not need to do anything here for now */
             break;
           }
 
@@ -258,12 +281,12 @@ int main(int argc, char *argv[]) {
   fclose(fpOutput);
   fclose(fpInput);
 
-  /* convert main file to mp3 */
+  /* convert main file to mp3 maybe the command could go to a config file.*/
   sprintf(command,"lame -r -m m -s 8 --bitwidth 16 %s %s.mp3",outputFile,filePrefix);
   system(command);
 
   /* remove main raw temp file*/
-  sprintf(command,"rm %s",outputFile);
+  sprintf(command,"rm -f %s",outputFile);
   system(command);
 
   return EXIT_SUCCESS;
