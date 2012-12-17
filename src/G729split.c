@@ -217,6 +217,10 @@ int main(int argc, char *argv[]) {
     {
       chunk_state[i] = BEFORE_CHUNK;
       chunk_start_frame[i] = HHMMSS2sec(argv[i*3+2]) *100;
+      if (chunk_start_frame[i] >= last_frame_nr){
+        printf("%s - Error: start frame %d beyond or at end of file.\n", argv[0], i+1);
+        exit(-1);
+      }
       chunk_stop_frame[i] = HHMMSS2sec(argv[i*3+3]) *100;
       if (chunk_stop_frame[i] > last_frame_nr){
         printf("%s - Warning: stop frame %d beyond end of file setting it to end of file\n", argv[0], i+1);
