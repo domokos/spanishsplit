@@ -3,7 +3,7 @@
  Name        : G729split.c
  Author      : 
  Version     :
- Copyright   : Your copyright notice
+ Copyright   :
  Description : G729Split
  ============================================================================
  */
