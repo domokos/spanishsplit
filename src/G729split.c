@@ -217,8 +217,8 @@ int main(int argc, char *argv[]) {
       chunk_start_frame[i] = HHMMSS2sec(argv[i*3+2]) *100;
       chunk_stop_frame[i] = HHMMSS2sec(argv[i*3+3]) *100;
       if (chunk_stop_frame[i] > last_frame_nr){
-        printf("%s - Error: stop frame %d beyond end of file\n", argv[0], i+1);
-        exit(-1);
+        printf("%s - Warning: stop frame %d beyond end of file setting it to end of file\n", argv[0], i+1);
+        chunk_stop_frame[i] = last_frame_nr;
       }
       temp_files[i] = malloc(sizeof(char)*200);
     }
@@ -249,10 +249,11 @@ int main(int argc, char *argv[]) {
               }
             break;
           case INSIDE_CHUNK:
-            if(framesNbr <= chunk_stop_frame[i])
+            if(framesNbr < chunk_stop_frame[i])
               {
                 fwrite(outputBuffer, sizeof(int16_t), L_FRAME, fpChunks[i]);
               } else{
+                fwrite(outputBuffer, sizeof(int16_t), L_FRAME, fpChunks[i]);
                 fclose(fpChunks[i]);
                 chunk_state[i]=AFTER_CHUNK;
 
