@@ -236,6 +236,7 @@ int main(int argc, char *argv[]) {
         {
           switch (chunk_state[i])
           {
+          /* the chunk's start frame is not yet reached: wait for it or start decoding and change state */
           case BEFORE_CHUNK:
             if(framesNbr >= chunk_start_frame[i])
               {
@@ -250,6 +251,7 @@ int main(int argc, char *argv[]) {
                 chunk_state[i]=INSIDE_CHUNK;
               }
             break;
+          /* the chunk is being captured. wait for the ending frame if there close, convert and cleanup */
           case INSIDE_CHUNK:
             if(framesNbr < chunk_stop_frame[i])
               {
