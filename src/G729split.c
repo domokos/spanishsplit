@@ -176,13 +176,12 @@ int main(int argc, char *argv[]) {
   char read_char;
   while(!data_found)
     {
-      if ((read_char = fgetc(fpInput)) != 'd') continue; else
+      read_char = fgetc(fpInput);
+      if (read_char  != 'd' && read_char != EOF) continue;
+      else if (read_char == EOF)
         {
-          if (read_char == EOF)
-            {
-            printf("%s - Error: no data tag found in wav file %s\n", argv[0], argv[1]);
-            exit(-1);
-            }
+          printf("%s - Error: no data tag found in wav file %s\n", argv[0], argv[1]);
+          exit(-1);
         }
       if (fgetc(fpInput) != 'a') continue;
       if (fgetc(fpInput) != 't') continue;
