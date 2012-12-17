@@ -93,9 +93,9 @@ int getArgument(int argc, char *argv[], char** filePrefix, int *nr_of_segments)
           printf("%s - Error stop parameter %s doesn't match format requirement: HHMMSS\n", argv[0], argv[i*3+3]);
           exit(-1);
         }
-      if ( HHMMSS2sec(argv[i*3+2]) > HHMMSS2sec(argv[i*3+3]))
+      if ( HHMMSS2sec(argv[i*3+2]) >= HHMMSS2sec(argv[i*3+3]))
         {
-          printf("%s - Error start parameter %s is bigger than stop parameter %s\n", argv[0], argv[i*3+2], argv[i*3+3]);
+          printf("%s - Error start parameter %s is not earlier than stop parameter %s\n", argv[0], argv[i*3+2], argv[i*3+3]);
           exit(-1);
         }
     }
