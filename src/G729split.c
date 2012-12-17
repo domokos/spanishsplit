@@ -258,7 +258,7 @@ int main(int argc, char *argv[]) {
                 chunk_state[i]=AFTER_CHUNK;
 
                 /* convert segment to mp3 */
-                sprintf(command,"lame -r -m m -s 8 --bitwidth 16 %s %s.mp3",temp_files[i],argv[i*3+4]);
+                sprintf(command,"lame -r -m m -s 8 --bitwidth 16 %s %s",temp_files[i],argv[i*3+4]);
                 system(command);
 
                 /* remove segment raw temp file*/
