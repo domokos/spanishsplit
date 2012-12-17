@@ -228,8 +228,10 @@ int main(int argc, char *argv[]) {
     {
       framesNbr++;
 
+      /* decode the actual frame */
       bcg729Decoder(decoderChannelContext, bitStream, 0, outputBuffer);
 
+      /* iterate through the requested output chunks and create/close them as needed */
       for (i=0; i<nr_of_segments; i++)
         {
           switch (chunk_state[i])
