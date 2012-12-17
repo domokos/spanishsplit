@@ -15,8 +15,6 @@
 #include <math.h>
 #include <time.h>
 
-
-#include "utils.h"
 #include "typedef.h"
 
 #include "bcg729/decoder.h"
