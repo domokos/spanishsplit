@@ -67,10 +67,9 @@ int getArgument(int argc, char *argv[], char** filePrefix, int *nr_of_segments)
   /* get the input file prefix */
   int i = strlen(argv[1])-1;
   int pos = 0;
-  while (pos==0) {
-      if (argv[1][i]=='.') {
-          pos = i;
-      }
+  while (pos==0)
+    {
+      if (argv[1][i]=='.') {pos = i;}
       i--;
       if (i==0) {
           printf("%s - Error input file  %s doesn't contain any ., impossible to extract prefix\n", argv[0], argv[1]);
@@ -80,6 +79,10 @@ int getArgument(int argc, char *argv[], char** filePrefix, int *nr_of_segments)
   *filePrefix = malloc((pos+3)*sizeof(char));
   strncpy(*filePrefix, argv[1], pos);
   (*filePrefix)[pos]='\0';
+
+  char *base = strrchr((*filePrefix), '/');
+  if (base) (*filePrefix) = base+1;
+
 
   *nr_of_segments = (argc -2)/3;
 
@@ -268,7 +271,7 @@ int main(int argc, char *argv[]) {
                 chunk_state[i]=AFTER_CHUNK;
 
                 /* convert segment to mp3 */
-                sprintf(command,"lame -r -m m -s 8 --bitwidth 16 %s %s",temp_files[i],argv[i*3+4]);
+                sprintf(command,"lame -r -m m -s 8 --bitwidth 16 -S -b 64 -q 2 %s %s",temp_files[i],argv[i*3+4]);
                 system(command);
 
                 /* remove segment raw temp file*/
@@ -292,7 +295,7 @@ int main(int argc, char *argv[]) {
   fclose(fpInput);
 
   /* convert main file to mp3 maybe the command could go to a config file.*/
-  sprintf(command,"lame -r -m m -s 8 --bitwidth 16 %s %s.mp3",outputFile,filePrefix);
+  sprintf(command,"lame -r -m m -s 8 --bitwidth 16 -S -b 64 -q 2 %s %s.mp3",outputFile,filePrefix);
   system(command);
 
   /* remove main raw temp file*/
