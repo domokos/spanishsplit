@@ -3,8 +3,8 @@
  Name        : G729split.c
  Author      : 
  Version     :
- Copyright   : Your copyright notice
- Description : Hello World in C, Ansi-style
+ Copyright   :
+ Description : G729Split
  ============================================================================
  */
 
@@ -40,6 +40,8 @@ int HHMMSS2sec(char* string)
 
 int isHHMMSS(char* string)
 {
+  if (strlen(string) !=6) return 0;
+
   int i;
   for (i=0; i<strlen(string); i++)
     {
@@ -65,10 +67,9 @@ int getArgument(int argc, char *argv[], char** filePrefix, int *nr_of_segments)
   /* get the input file prefix */
   int i = strlen(argv[1])-1;
   int pos = 0;
-  while (pos==0) {
-      if (argv[1][i]=='.') {
-          pos = i;
-      }
+  while (pos==0)
+    {
+      if (argv[1][i]=='.') {pos = i;}
       i--;
       if (i==0) {
           printf("%s - Error input file  %s doesn't contain any ., impossible to extract prefix\n", argv[0], argv[1]);
@@ -79,29 +80,56 @@ int getArgument(int argc, char *argv[], char** filePrefix, int *nr_of_segments)
   strncpy(*filePrefix, argv[1], pos);
   (*filePrefix)[pos]='\0';
 
+  char *base = strrchr((*filePrefix), '/');
+  if (base) (*filePrefix) = base+1;
+
+
   *nr_of_segments = (argc -2)/3;
 
   for(i=0; i<*nr_of_segments; i++)
     {
-      if ( (strlen(argv[i*3+2]) != 6) || !isHHMMSS(argv[i*3+2]) )
+      if ( !isHHMMSS(argv[i*3+2]) )
         {
           printf("%s - Error start parameter %s doesn't match format requirement: HHMMSS\n", argv[0], argv[i*3+2]);
           exit(-1);
         }
-      if ( (strlen(argv[i*3+3]) != 6) || !isHHMMSS(argv[i*3+3]) )
+      if ( !isHHMMSS(argv[i*3+3]) )
         {
           printf("%s - Error stop parameter %s doesn't match format requirement: HHMMSS\n", argv[0], argv[i*3+3]);
           exit(-1);
         }
-      if ( HHMMSS2sec(argv[i*3+2]) > HHMMSS2sec(argv[i*3+3]))
+      if ( HHMMSS2sec(argv[i*3+2]) >= HHMMSS2sec(argv[i*3+3]))
         {
-          printf("%s - Error start parameter %s is bigger than stop parameter %s\n", argv[0], argv[i*3+2], argv[i*3+3]);
+          printf("%s - Error start parameter %s is not earlier than stop parameter %s\n", argv[0], argv[i*3+2], argv[i*3+3]);
           exit(-1);
         }
     }
 
   return 0;
 }
+
+/* clear all output and temp files wher error in the middle of processing input */
+void cleanup(char **temp_files, FILE** temp_filehandles, int nr_of_segments, char *outputFile)
+{
+  char command[200];
+  int i;
+  for(i=0; i<nr_of_segments; i++)
+    {
+      /* remove segment raw temp files*/
+      fclose(temp_filehandles[i]);
+      sprintf(command,"rm -f %s",temp_files[i]);
+      system(command);
+
+      /* remove segment mp3 files*/
+      sprintf(command,"rm -f %s.mp3",temp_files[i]);
+      system(command);
+    }
+
+  /* remove main raw temp file*/
+  sprintf(command,"rm -f %s",outputFile);
+  system(command);
+}
+
 /* end of utils block */
 
 int main(int argc, char *argv[]) {
@@ -144,7 +172,7 @@ int main(int argc, char *argv[]) {
 
 
   /* system command buffer for the mp3 conversion*/
-  char *command = malloc(sizeof(char)*200);
+  char command[200];
 
   /* initialisation complete */
 
@@ -154,13 +182,13 @@ int main(int argc, char *argv[]) {
   char read_char;
   while(!data_found)
     {
-      if ((read_char = fgetc(fpInput)) != 'd') continue; else
+      read_char = fgetc(fpInput);
+      if (read_char  != 'd' && read_char != EOF) continue;
+      else if (read_char == EOF)
         {
-          if (read_char == EOF)
-            {
-            printf("%s - Error: no data tag found in wav file %s\n", argv[0], argv[1]);
-            exit(-1);
-            }
+          printf("%s - Error: no data tag found in wav file %s\n", argv[0], argv[1]);
+          cleanup(0,0,0,outputFile);
+          exit(-1);
         }
       if (fgetc(fpInput) != 'a') continue;
       if (fgetc(fpInput) != 't') continue;
@@ -194,10 +222,15 @@ int main(int argc, char *argv[]) {
     {
       chunk_state[i] = BEFORE_CHUNK;
       chunk_start_frame[i] = HHMMSS2sec(argv[i*3+2]) *100;
+      if (chunk_start_frame[i] >= last_frame_nr){
+        printf("%s - Error: start frame %d beyond or at end of file.\n", argv[0], i+1);
+        cleanup(0,0,0,outputFile);
+        exit(-1);
+      }
       chunk_stop_frame[i] = HHMMSS2sec(argv[i*3+3]) *100;
       if (chunk_stop_frame[i] > last_frame_nr){
-        printf("%s - Error: stop frame %d beyond end of file\n", argv[0], i+1);
-        exit(-1);
+        printf("%s - Warning: stop frame %d beyond end of file setting it to end of file\n", argv[0], i+1);
+        chunk_stop_frame[i] = last_frame_nr;
       }
       temp_files[i] = malloc(sizeof(char)*200);
     }
@@ -207,18 +240,23 @@ int main(int argc, char *argv[]) {
     {
       framesNbr++;
 
+      /* decode the actual frame */
       bcg729Decoder(decoderChannelContext, bitStream, 0, outputBuffer);
 
+      /* iterate through the requested output chunks and create/close them as needed */
       for (i=0; i<nr_of_segments; i++)
         {
           switch (chunk_state[i])
           {
+          /* the chunk's start frame is not yet reached: wait for it or start decoding and change state */
           case BEFORE_CHUNK:
             if(framesNbr >= chunk_start_frame[i])
               {
                 sprintf(temp_files[i],"%s_temp",argv[i*3+4]);
                 if ( (fpChunks[i] = fopen(temp_files[i], "w")) == NULL) {
                     printf("%s - Error: can't create chunk output file  %s\n", argv[0], temp_files[i]);
+                    fclose(fpOutput);
+                    cleanup(temp_files, fpChunks, nr_of_segments, outputFile);
                     exit(-1);
                 }
                 /* write the ouput to raw temp data file */
@@ -226,26 +264,28 @@ int main(int argc, char *argv[]) {
                 chunk_state[i]=INSIDE_CHUNK;
               }
             break;
+          /* the chunk is being captured. wait for the ending frame if there close, convert and cleanup */
           case INSIDE_CHUNK:
-            if(framesNbr <= chunk_stop_frame[i])
+            if(framesNbr < chunk_stop_frame[i])
               {
                 fwrite(outputBuffer, sizeof(int16_t), L_FRAME, fpChunks[i]);
               } else{
+                fwrite(outputBuffer, sizeof(int16_t), L_FRAME, fpChunks[i]);
                 fclose(fpChunks[i]);
                 chunk_state[i]=AFTER_CHUNK;
 
                 /* convert segment to mp3 */
-                sprintf(command,"lame -r -m m -s 8 --bitwidth 16 %s %s.mp3",temp_files[i],argv[i*3+4]);
+                sprintf(command,"lame -r -m m -s 8 --bitwidth 16 -S -b 64 -q 2 %s %s",temp_files[i],argv[i*3+4]);
                 system(command);
 
                 /* remove segment raw temp file*/
-                sprintf(command,"rm %s",temp_files[i]);
+                sprintf(command,"rm -f %s",temp_files[i]);
                 system(command);
 
               }
             break;
           case AFTER_CHUNK:
-
+            /* we do not need to do anything here for now */
             break;
           }
 
@@ -258,12 +298,12 @@ int main(int argc, char *argv[]) {
   fclose(fpOutput);
   fclose(fpInput);
 
-  /* convert main file to mp3 */
-  sprintf(command,"lame -r -m m -s 8 --bitwidth 16 %s %s.mp3",outputFile,filePrefix);
+  /* convert main file to mp3 maybe the command could go to a config file.*/
+  sprintf(command,"lame -r -m m -s 8 --bitwidth 16 -S -b 64 -q 2 %s %s.mp3",outputFile,filePrefix);
   system(command);
 
   /* remove main raw temp file*/
-  sprintf(command,"rm %s",outputFile);
+  sprintf(command,"rm -f %s",outputFile);
   system(command);
 
   return EXIT_SUCCESS;
