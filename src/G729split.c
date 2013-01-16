@@ -28,7 +28,7 @@
 
 void printUsage(char *command)
 {
-  printf ("G729 wav input to mp3 converter and splitter.\n\nUsage:\n %s <input file name> [start stop filename]...\n\n This executable converts G729 wav input to mp3. It requires 1+2*n arguments:\n <input file name> : process the input file and write the output in a file with the same prefix adding .mp3 extension\n [start stop filename] : If start and stop pairs are present then multiple output files are generated, input is split as per the specified segments and named as filename\n\n",command);
+  printf ("G729 wav input to mp3 converter and splitter.\n\nUsage:\n %s <input file name> <lame parameters> [start stop filename]...\n\n This executable converts G729 wav input to mp3. It requires 1+2*n arguments:\n <input file name> : process the input file and write the output in a file with the same prefix adding .mp3 extension\n [start stop filename] : If start and stop pairs are present then multiple output files are generated, input is split as per the specified segments and named as filename\n\n",command);
   exit (-1);
 
 }
@@ -58,23 +58,24 @@ int isHHMMSS(char* string)
 int getArgument(int argc, char *argv[], char** filePrefix, int *nr_of_segments)
 {
 
-  /* Check te number of arguments> it must be 3*n + 2 *including executable_name */
-  if (argc % 3 != 2) {
+  /* Check the number of arguments> it must be 3*n + 3 *including executable_name */
+  if (argc % 3 != 0 || argc < 3) {
       printUsage(argv[0]);
       exit (-1);
   }
 
   /* get the input file prefix */
   int i = strlen(argv[1])-1;
+  int endpos = i;
   int pos = 0;
   while (pos==0)
     {
       if (argv[1][i]=='.') {pos = i;}
-      i--;
-      if (i==0) {
-          printf("%s - Error input file  %s doesn't contain any ., impossible to extract prefix\n", argv[0], argv[1]);
+      if (i<1 || pos == endpos) {
+          printf("%s - Error input file  %s doesn't contain any . or extension after. , impossible to extract prefix\n", argv[0], argv[1]);
           exit(-1);
       }
+      i--;
   }
   *filePrefix = malloc((pos+3)*sizeof(char));
   strncpy(*filePrefix, argv[1], pos);
@@ -84,23 +85,23 @@ int getArgument(int argc, char *argv[], char** filePrefix, int *nr_of_segments)
   if (base) (*filePrefix) = base+1;
 
 
-  *nr_of_segments = (argc -2)/3;
+  *nr_of_segments = (argc - 3)/3;
 
   for(i=0; i<*nr_of_segments; i++)
     {
-      if ( !isHHMMSS(argv[i*3+2]) )
-        {
-          printf("%s - Error start parameter %s doesn't match format requirement: HHMMSS\n", argv[0], argv[i*3+2]);
-          exit(-1);
-        }
       if ( !isHHMMSS(argv[i*3+3]) )
         {
-          printf("%s - Error stop parameter %s doesn't match format requirement: HHMMSS\n", argv[0], argv[i*3+3]);
+          printf("%s - Error start parameter %s doesn't match format requirement: HHMMSS\n", argv[0], argv[i*3+3]);
           exit(-1);
         }
-      if ( HHMMSS2sec(argv[i*3+2]) >= HHMMSS2sec(argv[i*3+3]))
+      if ( !isHHMMSS(argv[i*3+4]) )
         {
-          printf("%s - Error start parameter %s is not earlier than stop parameter %s\n", argv[0], argv[i*3+2], argv[i*3+3]);
+          printf("%s - Error stop parameter %s doesn't match format requirement: HHMMSS\n", argv[0], argv[i*3+4]);
+          exit(-1);
+        }
+      if ( HHMMSS2sec(argv[i*3+3]) >= HHMMSS2sec(argv[i*3+4]))
+        {
+          printf("%s - Error start parameter %s is not earlier than stop parameter %s\n", argv[0], argv[i*3+3], argv[i*3+4]);
           exit(-1);
         }
     }
@@ -222,13 +223,13 @@ int main(int argc, char *argv[]) {
   for (i=0; i<nr_of_segments; i++)
     {
       chunk_state[i] = BEFORE_CHUNK;
-      chunk_start_frame[i] = HHMMSS2sec(argv[i*3+2]) *100;
+      chunk_start_frame[i] = HHMMSS2sec(argv[i*3+3]) * 100;
       if (chunk_start_frame[i] >= last_frame_nr){
         printf("%s - Error: start frame %d beyond or at end of file.\n", argv[0], i+1);
         cleanup(0,0,0,outputFile,fpOutput);
         exit(-1);
       }
-      chunk_stop_frame[i] = HHMMSS2sec(argv[i*3+3]) *100;
+      chunk_stop_frame[i] = HHMMSS2sec(argv[i*3+4]) * 100;
       if (chunk_stop_frame[i] > last_frame_nr){
         printf("%s - Warning: stop frame %d beyond end of file setting it to end of file\n", argv[0], i+1);
         chunk_stop_frame[i] = last_frame_nr;
@@ -253,7 +254,7 @@ int main(int argc, char *argv[]) {
           case BEFORE_CHUNK:
             if(framesNbr >= chunk_start_frame[i])
               {
-                sprintf(temp_files[i],"%s_temp",argv[i*3+4]);
+                sprintf(temp_files[i],"%s_temp",argv[i*3+5]);
                 if ( (fpChunks[i] = fopen(temp_files[i], "w")) == NULL) {
                     printf("%s - Error: can't create chunk output file  %s\n", argv[0], temp_files[i]);
                     cleanup(temp_files, fpChunks, nr_of_segments, outputFile,fpOutput);
@@ -275,7 +276,7 @@ int main(int argc, char *argv[]) {
                 chunk_state[i]=AFTER_CHUNK;
 
                 /* convert segment to mp3 */
-                sprintf(command,"lame -r -m m -s 8 --bitwidth 16 -S -b 64 -q 2 %s %s",temp_files[i],argv[i*3+4]);
+                sprintf(command,"lame %s %s %s",argv[2], temp_files[i], argv[i*3+5]);
                 system(command);
 
                 /* remove segment raw temp file*/
@@ -299,7 +300,7 @@ int main(int argc, char *argv[]) {
   fclose(fpInput);
 
   /* convert main file to mp3 maybe the command could go to a config file.*/
-  sprintf(command,"lame -r -m m -s 8 --bitwidth 16 -S -b 64 -q 2 %s %s.mp3",outputFile,filePrefix);
+  sprintf(command,"lame %s %s %s.mp3",argv[2], outputFile, filePrefix);
   system(command);
 
   /* remove main raw temp file*/
