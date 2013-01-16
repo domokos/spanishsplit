@@ -109,7 +109,7 @@ int getArgument(int argc, char *argv[], char** filePrefix, int *nr_of_segments)
 }
 
 /* clear all output and temp files wher error in the middle of processing input */
-void cleanup(char **temp_files, FILE** temp_filehandles, int nr_of_segments, char *outputFile)
+void cleanup(char **temp_files, FILE** temp_filehandles, int nr_of_segments, char *outputFile, FILE* output_filehandle)
 {
   char command[200];
   int i;
@@ -126,6 +126,7 @@ void cleanup(char **temp_files, FILE** temp_filehandles, int nr_of_segments, cha
     }
 
   /* remove main raw temp file*/
+  fclose(output_filehandle);
   sprintf(command,"rm -f %s",outputFile);
   system(command);
 }
@@ -159,7 +160,7 @@ int main(int argc, char *argv[]) {
           exit(-1);
   }
 
-  /* create the output file(filename is the same than input file with the .out extension) */
+  /* create the output file(filename is the same than input file with the .raw extension) */
   char *outputFile = malloc((strlen(filePrefix)+5)*sizeof(char));
   sprintf(outputFile, "%s.raw",filePrefix);
   if ( (fpOutput = fopen(outputFile, "w")) == NULL) {
@@ -187,7 +188,7 @@ int main(int argc, char *argv[]) {
       else if (read_char == EOF)
         {
           printf("%s - Error: no data tag found in wav file %s\n", argv[0], argv[1]);
-          cleanup(0,0,0,outputFile);
+          cleanup(0,0,0,outputFile,fpOutput);
           exit(-1);
         }
       if (fgetc(fpInput) != 'a') continue;
@@ -224,7 +225,7 @@ int main(int argc, char *argv[]) {
       chunk_start_frame[i] = HHMMSS2sec(argv[i*3+2]) *100;
       if (chunk_start_frame[i] >= last_frame_nr){
         printf("%s - Error: start frame %d beyond or at end of file.\n", argv[0], i+1);
-        cleanup(0,0,0,outputFile);
+        cleanup(0,0,0,outputFile,fpOutput);
         exit(-1);
       }
       chunk_stop_frame[i] = HHMMSS2sec(argv[i*3+3]) *100;
@@ -255,8 +256,7 @@ int main(int argc, char *argv[]) {
                 sprintf(temp_files[i],"%s_temp",argv[i*3+4]);
                 if ( (fpChunks[i] = fopen(temp_files[i], "w")) == NULL) {
                     printf("%s - Error: can't create chunk output file  %s\n", argv[0], temp_files[i]);
-                    fclose(fpOutput);
-                    cleanup(temp_files, fpChunks, nr_of_segments, outputFile);
+                    cleanup(temp_files, fpChunks, nr_of_segments, outputFile,fpOutput);
                     exit(-1);
                 }
                 /* write the ouput to raw temp data file */
