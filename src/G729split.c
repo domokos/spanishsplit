@@ -182,28 +182,30 @@ int main(int argc, char *argv[]) {
 
   /* initialisation complete */
 
-
   /* discard vaw header read until string "data" is found */
-  int data_found = 0;
-  char read_char;
-  while(!data_found)
+  int read_char, data_found = 0, at_eof = 0;
+  while(!data_found && !at_eof)
     {
-      read_char = fgetc(fpInput);
-      if (read_char  != 'd' && read_char != EOF) continue;
-      else if (read_char == EOF)
-        {
-          printf("%s - Error: no data tag found in wav file %s\n", argv[0], argv[1]);
-          cleanup(NULL,NULL,0,outputFile,fpOutput);
-          exit(-1);
-        }
+      if ((read_char=fgetc(fpInput)) != 'd' && read_char != EOF) continue; else at_eof = (read_char == EOF);
       if (fgetc(fpInput) != 'a') continue;
       if (fgetc(fpInput) != 't') continue;
       if (fgetc(fpInput) != 'a') continue; else data_found = 1;
     }
 
-  /* read and get rid of 4 bytes stSubchunk2Size */
-  fread(bitStream, 4,1,fpInput);
+  if(at_eof)
+  {
+    printf("%s - Error: no data tag found in wav file or data found at end of file in %s\n", argv[0], argv[1]);
+    cleanup(NULL,NULL,0,outputFile,fpOutput);
+    exit(-1);
+  }
 
+  /* read and get rid of 4 bytes stSubchunk2Size */
+  if ( fread(bitStream, 4,1,fpInput) != 1)
+  {
+    printf("%s - Error: no valid WAV after data tag in file: %s\n", argv[0], argv[1]);
+    cleanup(NULL,NULL,0,outputFile,fpOutput);
+    exit(-1);
+  }
 
   /* 1 frame is 80 output samples. Output sample rate is 8000 Hz */
   int framesNbr =0;
