@@ -186,7 +186,8 @@ int main(int argc, char *argv[]) {
   int read_char, data_found = 0, at_eof = 0;
   while(!data_found && !at_eof)
     {
-      if ((read_char=fgetc(fpInput)) != 'd' && read_char != EOF) continue; else at_eof = (read_char == EOF);
+      if ((read_char=fgetc(fpInput)) != 'd')
+        if(read_char != EOF) continue; else at_eof = 1;
       if (fgetc(fpInput) != 'a') continue;
       if (fgetc(fpInput) != 't') continue;
       if (fgetc(fpInput) != 'a') continue; else data_found = 1;
@@ -194,7 +195,7 @@ int main(int argc, char *argv[]) {
 
   if(at_eof)
   {
-    printf("%s - Error: no data tag found in wav file or data found at end of file in %s\n", argv[0], argv[1]);
+    printf("%s - Error: no data tag found in wav file %s\n", argv[0], argv[1]);
     cleanup(NULL,NULL,0,outputFile,fpOutput);
     exit(-1);
   }
@@ -223,6 +224,13 @@ int main(int argc, char *argv[]) {
   last_frame_nr = (ftell(fpInput) - position) / 10;
 
   fseek(fpInput, position, SEEK_SET);
+
+  if (last_frame_nr == 0)
+  {
+    printf("%s - Error: no valid voice data in file: %s\n", argv[0], argv[1]);
+    cleanup(NULL,NULL,0,outputFile,fpOutput);
+    exit(-1);
+  }
 
   /* Initialize the state of all chunks - 1 sec is 100 input frames */
   int i;
