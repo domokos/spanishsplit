@@ -24,13 +24,13 @@
 #define AFTER_CHUNK 2
 
 /* globals */
-char *rm_binary, *lame_binary, *lame_parameters;
+char *rm_binary, *encoder_binary, *encoder_parameters;
 
 /* util functions */
 
 void printUsage(char *command)
 {
-  printf ("G729 wav input to mp3 converter and splitter.\n\nUsage:\n %s <input file name> <lame_binary> <lame parameters> <rm_binary> [start stop filename]...\n\n This executable converts G729 wav input to mp3. It requires 1+2*n arguments:\n <input file name> : process the input file and write the output in a file with the same prefix adding .mp3 extension\n [start stop filename] : If start and stop pairs are present then multiple output files are generated, input is split as per the specified segments and named as filename\n\n",command);
+  printf ("G729 wav input to mp3 converter and splitter.\n\nUsage:\n %s <input file name> <encoder_binary> <encoder_parameters> <rm_binary> [start stop filename]...\n\n This executable converts G729 wav input to mp3. It requires 1+2*n arguments:\n <input file name> : process the input file and write the output in a file with the same prefix adding .mp3 extension\n [start stop filename] : If start and stop pairs are present then multiple output files are generated, input is split as per the specified segments and named as filename\n\n",command);
   exit (-1);
 
 }
@@ -140,8 +140,8 @@ int main(int argc, char *argv[]) {
 
   char *filePrefix;
   int nr_of_segments;
-  lame_binary = argv[2];
-  lame_parameters = argv[3];
+  encoder_binary = argv[2];
+  encoder_parameters = argv[3];
   rm_binary = argv[4];
 
   /*
@@ -290,7 +290,7 @@ int main(int argc, char *argv[]) {
                 chunk_state[i]=AFTER_CHUNK;
 
                 /* convert segment to mp3 */
-                sprintf(command,"%s %s %s %s",lame_binary, lame_parameters, temp_files[i], argv[i*3+7]);
+                sprintf(command,"%s %s %s %s",encoder_binary, encoder_parameters, temp_files[i], argv[i*3+7]);
                 system(command);
 
                 /* remove segment raw temp file*/
@@ -314,7 +314,7 @@ int main(int argc, char *argv[]) {
   fclose(fpInput);
 
   /* convert main file to mp3 maybe the command could go to a config file.*/
-  sprintf(command,"%s %s %s %s.mp3",lame_binary, lame_parameters, outputFile, filePrefix);
+  sprintf(command,"%s %s %s %s.mp3",encoder_binary, encoder_parameters, outputFile, filePrefix);
   system(command);
 
   /* remove main raw temp file*/
