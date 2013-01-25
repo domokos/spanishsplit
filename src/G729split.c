@@ -24,13 +24,13 @@
 #define AFTER_CHUNK 2
 
 /* globals */
-char *rm_binary, *encoder_binary, *encoder_parameters;
+char *rm_binary, *encoder_binary, *encoder_parameters, *output_extension;
 
 /* util functions */
 
 void printUsage(char *command)
 {
-  printf ("G729 wav input to mp3 converter and splitter.\n\nUsage:\n %s <input file name> <encoder_binary> <encoder_parameters> <rm_binary> [start stop filename]...\n\n This executable converts G729 wav input to mp3. It requires 1+2*n arguments:\n <input file name> : process the input file and write the output in a file with the same prefix adding .mp3 extension\n [start stop filename] : If start and stop pairs are present then multiple output files are generated, input is split as per the specified segments and named as filename\n\n",command);
+  printf ("G729 wav input converter and splitter.\n\nUsage:\n %s <input file name> <output extension> <encoder_binary> <encoder_parameters> <rm_binary> [start stop filename]...\n\n This executable converts G729 wav input to raw PCM and then passes it to the <encoder_binary> program. It requires 1+2*n arguments:\n <input file name> : process the input file and write the output in a file with the same prefix adding .<output_extension> extension\n [start stop filename] : If start and stop pairs are present then multiple output files are generated, input is split as per the specified segments and named as filename\n\n",command);
   exit (-1);
 
 }
@@ -60,8 +60,8 @@ int isHHMMSS(char* string)
 int getArgument(int argc, char *argv[], char** filePrefix, int *nr_of_segments)
 {
 
-  /* Check the number of arguments> it must be 3*n + 3 *including executable_name */
-  if (argc % 3 != 2 || argc < 5) {
+  /* Check the number of arguments> it must be 3*n + 6 *including executable_name */
+  if (argc % 3 != 0 || argc < 6) {
       printUsage(argv[0]);
       exit (-1);
   }
@@ -74,7 +74,7 @@ int getArgument(int argc, char *argv[], char** filePrefix, int *nr_of_segments)
     {
       if (argv[1][i]=='.') {pos = i;}
       if (i<1 || pos == endpos) {
-          printf("%s - Error input file  %s doesn't contain any . or extension after. , impossible to extract prefix\n", argv[0], argv[1]);
+          printf("%s - Error input file: %s doesn't contain any . or extension after. , impossible to extract prefix\n", argv[0], argv[1]);
           exit(-1);
       }
       i--;
@@ -87,21 +87,21 @@ int getArgument(int argc, char *argv[], char** filePrefix, int *nr_of_segments)
   if (base) (*filePrefix) = base+1;
 
 
-  *nr_of_segments = (argc - 3)/3;
+  *nr_of_segments = (argc - 6)/3;
 
   for(i=0; i<*nr_of_segments; i++)
     {
-      if ( !isHHMMSS(argv[i*3+5]) )
+      if ( !isHHMMSS(argv[i*3+6]) )
         {
           printf("%s - Error start parameter %s doesn't match format requirement: HHMMSS\n", argv[0], argv[i*3+5]);
           exit(-1);
         }
-      if ( !isHHMMSS(argv[i*3+6]) )
+      if ( !isHHMMSS(argv[i*3+7]) )
         {
           printf("%s - Error stop parameter %s doesn't match format requirement: HHMMSS\n", argv[0], argv[i*3+6]);
           exit(-1);
         }
-      if ( HHMMSS2sec(argv[i*3+5]) >= HHMMSS2sec(argv[i*3+6]))
+      if ( HHMMSS2sec(argv[i*3+6]) >= HHMMSS2sec(argv[i*3+7]))
         {
           printf("%s - Error start parameter %s is not earlier than stop parameter %s\n", argv[0], argv[i*3+5], argv[i*3+6]);
           exit(-1);
@@ -112,7 +112,7 @@ int getArgument(int argc, char *argv[], char** filePrefix, int *nr_of_segments)
 }
 
 /* clear all output and temp files when error in the middle of processing input */
-void cleanup(char **temp_files, FILE** temp_filehandles, int nr_of_segments, char *outputFile, FILE* output_filehandle)
+void cleanup(char **temp_files, FILE** temp_filehandles, int nr_of_segments, char *outputFile, FILE* output_filehandle, char **argv)
 {
   char command[200];
   int i;
@@ -123,8 +123,8 @@ void cleanup(char **temp_files, FILE** temp_filehandles, int nr_of_segments, cha
       sprintf(command,"%s -f %s",rm_binary, temp_files[i]);
       system(command);
 
-      /* remove segment mp3 files*/
-      sprintf(command,"%s -f %s.mp3",rm_binary, temp_files[i]);
+      /* remove segment output files*/
+      sprintf(command,"%s -f %s",rm_binary, argv[i*3+8]);
       system(command);
     }
 
@@ -140,9 +140,11 @@ int main(int argc, char *argv[]) {
 
   char *filePrefix;
   int nr_of_segments;
+
   encoder_binary = argv[2];
-  encoder_parameters = argv[3];
-  rm_binary = argv[4];
+  output_extension = argv[3];
+  encoder_parameters = argv[4];
+  rm_binary = argv[5];
 
   /*
    * Get calling arguments, set filePrefix and number
@@ -177,8 +179,8 @@ int main(int argc, char *argv[]) {
   bcg729DecoderChannelContextStruct *decoderChannelContext = initBcg729DecoderChannel();
 
 
-  /* system command buffer for the mp3 conversion*/
-  char command[200];
+  /* system command buffer for the output conversion*/
+  char command[400];
 
   /* initialisation complete */
 
@@ -187,7 +189,10 @@ int main(int argc, char *argv[]) {
   while(!data_found && !at_eof)
     {
       if ((read_char=fgetc(fpInput)) != 'd')
-        if(read_char != EOF) continue; else at_eof = 1;
+        {
+          at_eof = (read_char == EOF);
+          continue;
+        }
       if (fgetc(fpInput) != 'a') continue;
       if (fgetc(fpInput) != 't') continue;
       if (fgetc(fpInput) != 'a') continue; else data_found = 1;
@@ -196,7 +201,7 @@ int main(int argc, char *argv[]) {
   if(at_eof)
   {
     printf("%s - Error: no data tag found in wav file %s\n", argv[0], argv[1]);
-    cleanup(NULL,NULL,0,outputFile,fpOutput);
+    cleanup(NULL,NULL,0,outputFile,fpOutput,argv);
     exit(-1);
   }
 
@@ -204,7 +209,7 @@ int main(int argc, char *argv[]) {
   if ( fread(bitStream, 4,1,fpInput) != 1)
   {
     printf("%s - Error: no valid WAV after data tag in file: %s\n", argv[0], argv[1]);
-    cleanup(NULL,NULL,0,outputFile,fpOutput);
+    cleanup(NULL,NULL,0,outputFile,fpOutput,argv);
     exit(-1);
   }
 
@@ -228,7 +233,7 @@ int main(int argc, char *argv[]) {
   if (last_frame_nr == 0)
   {
     printf("%s - Error: no valid voice data in file: %s\n", argv[0], argv[1]);
-    cleanup(NULL,NULL,0,outputFile,fpOutput);
+    cleanup(NULL,NULL,0,outputFile,fpOutput,argv);
     exit(-1);
   }
 
@@ -237,13 +242,13 @@ int main(int argc, char *argv[]) {
   for (i=0; i<nr_of_segments; i++)
     {
       chunk_state[i] = BEFORE_CHUNK;
-      chunk_start_frame[i] = HHMMSS2sec(argv[i*3+5]) * 100;
+      chunk_start_frame[i] = HHMMSS2sec(argv[i*3+6]) * 100;
       if (chunk_start_frame[i] >= last_frame_nr){
         printf("%s - Error: start frame %d beyond or at end of file.\n", argv[0], i+1);
-        cleanup(NULL,NULL,0,outputFile,fpOutput);
+        cleanup(NULL,NULL,0,outputFile,fpOutput,argv);
         exit(-1);
       }
-      chunk_stop_frame[i] = HHMMSS2sec(argv[i*3+6]) * 100;
+      chunk_stop_frame[i] = HHMMSS2sec(argv[i*3+7]) * 100;
       if (chunk_stop_frame[i] > last_frame_nr){
         printf("%s - Warning: stop frame %d beyond end of file setting it to end of file\n", argv[0], i+1);
         chunk_stop_frame[i] = last_frame_nr;
@@ -268,10 +273,10 @@ int main(int argc, char *argv[]) {
           case BEFORE_CHUNK:
             if(framesNbr >= chunk_start_frame[i])
               {
-                sprintf(temp_files[i],"%s_temp",argv[i*3+7]);
+                sprintf(temp_files[i],"%s_temp",argv[i*3+8]);
                 if ( (fpChunks[i] = fopen(temp_files[i], "w")) == NULL) {
                     printf("%s - Error: can't create chunk output file  %s\n", argv[0], temp_files[i]);
-                    cleanup(temp_files, fpChunks, nr_of_segments, outputFile,fpOutput);
+                    cleanup(temp_files, fpChunks, nr_of_segments, outputFile,fpOutput,argv);
                     exit(-1);
                 }
                 /* write the ouput to raw temp data file */
@@ -289,8 +294,8 @@ int main(int argc, char *argv[]) {
                 fclose(fpChunks[i]);
                 chunk_state[i]=AFTER_CHUNK;
 
-                /* convert segment to mp3 */
-                sprintf(command,"%s %s %s %s",encoder_binary, encoder_parameters, temp_files[i], argv[i*3+7]);
+                /* convert segment to output format */
+                sprintf(command,"%s %s %s %s",encoder_binary, encoder_parameters, temp_files[i], argv[i*3+8]);
                 system(command);
 
                 /* remove segment raw temp file*/
@@ -313,8 +318,8 @@ int main(int argc, char *argv[]) {
   fclose(fpOutput);
   fclose(fpInput);
 
-  /* convert main file to mp3 maybe the command could go to a config file.*/
-  sprintf(command,"%s %s %s %s.mp3",encoder_binary, encoder_parameters, outputFile, filePrefix);
+  /* convert main file to output format.*/
+  sprintf(command,"%s %s %s %s.%s",encoder_binary, encoder_parameters, outputFile, filePrefix, output_extension);
   system(command);
 
   /* remove main raw temp file*/
