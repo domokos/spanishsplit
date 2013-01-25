@@ -30,7 +30,18 @@ char *rm_binary, *encoder_binary, *encoder_parameters, *output_extension;
 
 void printUsage(char *command)
 {
-  printf ("G729 wav input converter and splitter.\n\nUsage:\n %s <input file name> <output extension> <encoder_binary> <encoder_parameters> <rm_binary> [start stop filename]...\n\n This executable converts G729 wav input to raw PCM and then passes it to the <encoder_binary> program. It requires 1+2*n arguments:\n <input file name> : process the input file and write the output in a file with the same prefix adding .<output_extension> extension\n [start stop filename] : If start and stop pairs are present then multiple output files are generated, input is split as per the specified segments and named as filename\n\n",command);
+  printf ("G729 wav input converter and splitter.\n\n\
+Usage:\n %s <input file name> <output extension> <encoder_binary> <encoder_parameters> <rm_binary> [start stop filename]...\n\n\
+      This executable converts G729 wav input to raw PCM chunks and then passes it to the <encoder_binary> program. \n\n\
+      It requires 5+3*n arguments:\n \
+     <input file name> :     Process the input file and write the output in a file \n\
+                              with the same prefix adding .<output_extension> extension \n\
+      <output extension> :    Use this extension for the main uptput file. Not used for segment filenames\n\
+      <encoder_binary> :      Use this binary as encoder\n\
+      <encoder_parameters> :  Pass these parameters to the encoder binary\n\
+      <rm_binary> :           Use this binary for removing temp files\n\
+      [start stop filename] : If start and stop pairs are present then multiple output files are generated,\n\
+                              input is split as per the specified segments and named as filename\n\n",command);
   exit (-1);
 
 }
@@ -62,7 +73,7 @@ int getArgument(int argc, char *argv[], char** filePrefix, int *nr_of_segments)
 
   /* Check the number of arguments> it must be 3*n + 6 *including executable_name */
   if (argc % 3 != 0 || argc < 6) {
-      printUsage(argv[0]);
+      printUsage("G729split");
       exit (-1);
   }
 
