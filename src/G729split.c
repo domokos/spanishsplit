@@ -24,7 +24,7 @@
 #define AFTER_CHUNK 2
 
 /* globals */
-char *rm_binary, *encoder_binary, *encoder_parameters, *output_extension;
+char *rm_binary, *encoder_binary, *encoder_parameters, *output_filename;
 
 /* util functions */
 
@@ -36,7 +36,7 @@ Usage:\n %s <input file name> <output extension> <encoder_binary> <encoder_param
       It requires 5+3*n arguments:\n \
      <input file name> :     Process the input file and write the output in a file \n\
                               with the same prefix adding .<output_extension> extension \n\
-      <output extension> :    Use this extension for the main uptput file. Not used for segment filenames\n\
+      <output filename> :    Use this filename for the main optput file. Not used for segment filenames\n\
       <encoder_binary> :      Use this binary as encoder\n\
       <encoder_parameters> :  Pass these parameters to the encoder binary\n\
       <rm_binary> :           Use this binary for removing temp files\n\
@@ -68,7 +68,7 @@ int isHHMMSS(char* string)
   return 1;
 }
 
-int getArgument(int argc, char *argv[], char** filePrefix, int *nr_of_segments)
+int getArgument(int argc, char *argv[], int *nr_of_segments)
 {
 
   /* Check the number of arguments> it must be 3*n + 6 *including executable_name */
@@ -77,26 +77,7 @@ int getArgument(int argc, char *argv[], char** filePrefix, int *nr_of_segments)
       exit (-1);
   }
 
-  /* get the input file prefix */
-  int i = strlen(argv[1])-1;
-  int endpos = i;
-  int pos = 0;
-  while (pos==0)
-    {
-      if (argv[1][i]=='.') {pos = i;}
-      if (i<1 || pos == endpos) {
-          printf("%s - Error input file: %s doesn't contain any . or extension after. , impossible to extract prefix\n", argv[0], argv[1]);
-          exit(-1);
-      }
-      i--;
-  }
-  *filePrefix = malloc((pos+3)*sizeof(char));
-  strncpy(*filePrefix, argv[1], pos);
-  (*filePrefix)[pos]='\0';
-
-  char *base = strrchr((*filePrefix), '/');
-  if (base) (*filePrefix) = base+1;
-
+  int i;
 
   *nr_of_segments = (argc - 6)/3;
 
@@ -123,7 +104,7 @@ int getArgument(int argc, char *argv[], char** filePrefix, int *nr_of_segments)
 }
 
 /* clear all output and temp files when error in the middle of processing input */
-void cleanup(char **temp_files, FILE** temp_filehandles, int nr_of_segments, char *outputFile, FILE* output_filehandle, char **argv)
+void cleanup(char **temp_files, FILE** temp_filehandles, int nr_of_segments, char *rawoutputFile, FILE* rawoutput_filehandle, char **argv)
 {
   char command[200];
   int i;
@@ -140,8 +121,8 @@ void cleanup(char **temp_files, FILE** temp_filehandles, int nr_of_segments, cha
     }
 
   /* remove main raw temp file*/
-  fclose(output_filehandle);
-  sprintf(command,"%s -f %s",rm_binary, outputFile);
+  fclose(rawoutput_filehandle);
+  sprintf(command,"%s -f %s",rm_binary, rawoutputFile);
   system(command);
 }
 
@@ -153,7 +134,7 @@ int main(int argc, char *argv[]) {
   int nr_of_segments;
 
   encoder_binary = argv[2];
-  output_extension = argv[3];
+  output_filename = argv[3];
   encoder_parameters = argv[4];
   rm_binary = argv[5];
 
@@ -161,7 +142,7 @@ int main(int argc, char *argv[]) {
    * Get calling arguments, set filePrefix and number
    * of requested segments
    */
-  getArgument(argc, argv, &filePrefix, &nr_of_segments);
+  getArgument(argc, argv, &nr_of_segments);
 
   /* input and output file pointers */
   FILE *fpInput;
@@ -178,11 +159,11 @@ int main(int argc, char *argv[]) {
           exit(-1);
   }
 
-  /* create the output file(filename is the same than input file with the .raw extension) */
-  char *outputFile = malloc((strlen(filePrefix)+5)*sizeof(char));
-  sprintf(outputFile, "%s.raw",filePrefix);
-  if ( (fpOutput = fopen(outputFile, "w")) == NULL) {
-          printf("%s - Error: can't create file  %s\n", argv[0], outputFile);
+  /* create the raw temporary output file (filename is the same than input file with the .raw extension) */
+  char *rawOutputFile = malloc((strlen(filePrefix)+5)*sizeof(char));
+  sprintf(rawOutputFile, "%s.raw",filePrefix);
+  if ( (fpOutput = fopen(rawOutputFile, "w")) == NULL) {
+          printf("%s - Error: can't create file  %s\n", argv[0], rawOutputFile);
           exit(-1);
   }
 
@@ -212,7 +193,7 @@ int main(int argc, char *argv[]) {
   if(at_eof)
   {
     printf("%s - Error: no data tag found in wav file %s\n", argv[0], argv[1]);
-    cleanup(NULL,NULL,0,outputFile,fpOutput,argv);
+    cleanup(NULL,NULL,0,rawOutputFile,fpOutput,argv);
     exit(-1);
   }
 
@@ -220,7 +201,7 @@ int main(int argc, char *argv[]) {
   if ( fread(bitStream, 4,1,fpInput) != 1)
   {
     printf("%s - Error: no valid WAV after data tag in file: %s\n", argv[0], argv[1]);
-    cleanup(NULL,NULL,0,outputFile,fpOutput,argv);
+    cleanup(NULL,NULL,0,rawOutputFile,fpOutput,argv);
     exit(-1);
   }
 
@@ -244,7 +225,7 @@ int main(int argc, char *argv[]) {
   if (last_frame_nr == 0)
   {
     printf("%s - Error: no valid voice data in file: %s\n", argv[0], argv[1]);
-    cleanup(NULL,NULL,0,outputFile,fpOutput,argv);
+    cleanup(NULL,NULL,0,rawOutputFile,fpOutput,argv);
     exit(-1);
   }
 
@@ -256,7 +237,7 @@ int main(int argc, char *argv[]) {
       chunk_start_frame[i] = HHMMSS2sec(argv[i*3+6]) * 100;
       if (chunk_start_frame[i] >= last_frame_nr){
         printf("%s - Error: start frame %d beyond or at end of file.\n", argv[0], i+1);
-        cleanup(NULL,NULL,0,outputFile,fpOutput,argv);
+        cleanup(NULL,NULL,0,rawOutputFile,fpOutput,argv);
         exit(-1);
       }
       chunk_stop_frame[i] = HHMMSS2sec(argv[i*3+7]) * 100;
@@ -287,7 +268,7 @@ int main(int argc, char *argv[]) {
                 sprintf(temp_files[i],"%s_temp",argv[i*3+8]);
                 if ( (fpChunks[i] = fopen(temp_files[i], "w")) == NULL) {
                     printf("%s - Error: can't create chunk output file  %s\n", argv[0], temp_files[i]);
-                    cleanup(temp_files, fpChunks, nr_of_segments, outputFile,fpOutput,argv);
+                    cleanup(temp_files, fpChunks, nr_of_segments, rawOutputFile, fpOutput, argv);
                     exit(-1);
                 }
                 /* write the ouput to raw temp data file */
@@ -330,11 +311,11 @@ int main(int argc, char *argv[]) {
   fclose(fpInput);
 
   /* convert main file to output format.*/
-  sprintf(command,"%s %s %s %s.%s",encoder_binary, encoder_parameters, outputFile, filePrefix, output_extension);
+  sprintf(command,"%s %s %s %s",encoder_binary, encoder_parameters, rawOutputFile, output_filename);
   system(command);
 
   /* remove main raw temp file*/
-  sprintf(command,"%s -f %s",rm_binary, outputFile);
+  sprintf(command,"%s -f %s",rm_binary, rawOutputFile);
   system(command);
 
   return EXIT_SUCCESS;
