@@ -24,7 +24,7 @@
 #define AFTER_CHUNK 2
 
 /* globals */
-char *rm_binary, *encoder_binary, *encoder_parameters, *output_filename;
+char *rm_binary, *encoder_binary, *encoder_parameters, *input_filename, *output_filename;
 
 /* util functions */
 
@@ -130,9 +130,9 @@ void cleanup(char **temp_files, FILE** temp_filehandles, int nr_of_segments, cha
 
 int main(int argc, char *argv[]) {
 
-  char *filePrefix;
   int nr_of_segments;
 
+  input_filename = argv[1];
   encoder_binary = argv[2];
   output_filename = argv[3];
   encoder_parameters = argv[4];
@@ -154,16 +154,16 @@ int main(int argc, char *argv[]) {
 
   /* inits */
   /* open the input file */
-  if ( (fpInput = fopen(argv[1], "r")) == NULL) {
-          printf("%s - Error: can't open file  %s\n", argv[0], argv[1]);
+  if ( (fpInput = fopen(input_filename, "r")) == NULL) {
+          printf("%s - Error: can't open input file: %s\n", argv[0], input_filename);
           exit(-1);
   }
 
   /* create the raw temporary output file (filename is the same than input file with the .raw extension) */
-  char *rawOutputFile = malloc((strlen(filePrefix)+5)*sizeof(char));
-  sprintf(rawOutputFile, "%s.raw",filePrefix);
+  char *rawOutputFile = malloc((strlen(input_filename)+5)*sizeof(char));
+  sprintf(rawOutputFile, "%s.raw",input_filename);
   if ( (fpOutput = fopen(rawOutputFile, "w")) == NULL) {
-          printf("%s - Error: can't create file  %s\n", argv[0], rawOutputFile);
+          printf("%s - Error: can't create output raw file: %s\n", argv[0], rawOutputFile);
           exit(-1);
   }
 
